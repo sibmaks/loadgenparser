@@ -60,11 +60,14 @@ public class ExcelWriter {
         row.createCell(3, CellType.NUMERIC).setCellValue(stat.getTotalTime().doubleValue());
         row.createCell(4, CellType.NUMERIC).setCellValue(stat.getAverageTime().doubleValue());
         row.createCell(5, CellType.NUMERIC).setCellValue(stat.getVariance().doubleValue());
+        row.createCell(6, CellType.NUMERIC).setCellValue(stat.getPercentile99().doubleValue());
+        row.createCell(7, CellType.NUMERIC).setCellValue(stat.getMin().doubleValue());
+        row.createCell(8, CellType.NUMERIC).setCellValue(stat.getMax().doubleValue());
     }
 
     private static String[] createHeaders(XSSFSheet sheet, CellStyle headerStyle) {
         var headerRow = sheet.createRow(0);
-        var headers = new String[]{"HTTP Method", "URI", "Total Requests", "Total Time (ms)", "Avg Time (ms)", "Variance (ms)"};
+        var headers = new String[]{"HTTP Method", "URI", "Total Requests", "Total Time (ms)", "Avg Time (ms)", "Variance (ms)", "99% (ms)", "Min (ms)", "Max (ms)"};
         for (var i = 0; i < headers.length; i++) {
             var cell = headerRow.createCell(i);
             cell.setCellValue(headers[i]);

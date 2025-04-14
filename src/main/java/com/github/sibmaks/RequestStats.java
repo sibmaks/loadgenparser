@@ -3,6 +3,7 @@ package com.github.sibmaks;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 public class RequestStats {
@@ -46,5 +47,39 @@ public class RequestStats {
         var mean = sum.divide(BigDecimal.valueOf(n), RoundingMode.HALF_DOWN);
         return sumSq.divide(BigDecimal.valueOf(n), RoundingMode.HALF_DOWN)
                 .subtract(mean.pow(2));
+    }
+
+    public BigDecimal getPercentile99() {
+        var n = values.size();
+        if (n == 0) {
+            return BigDecimal.ZERO;
+        }
+
+        var sorted = new ArrayList<>(values);
+        Collections.sort(sorted);
+        var index = (int) Math.ceil(0.99 * n) - 1;
+        index = Math.min(index, n - 1);
+
+        return sorted.get(index);
+    }
+
+    public BigDecimal getMin() {
+        var n = values.size();
+        if (n == 0) {
+            return BigDecimal.ZERO;
+        }
+        return values.stream()
+                .min(BigDecimal::compareTo)
+                .orElse(BigDecimal.ZERO);
+    }
+
+    public BigDecimal getMax() {
+        var n = values.size();
+        if (n == 0) {
+            return BigDecimal.ZERO;
+        }
+        return values.stream()
+                .max(BigDecimal::compareTo)
+                .orElse(BigDecimal.ZERO);
     }
 }

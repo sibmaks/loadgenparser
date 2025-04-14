@@ -19,9 +19,9 @@ public class LogParser {
 
         var stats = collectStatistics(args[0]);
 
-        printStatistics(stats);
+        //printStatistics(stats);
 
-        ExcelWriter.writeExcelReport(stats, "output.xlsx");
+        ExcelWriter.writeExcelReport(stats, "output-%d.xlsx".formatted(System.currentTimeMillis()));
     }
 
     private static HashMap<RequestKey, RequestStats> collectStatistics(String fileName) {
