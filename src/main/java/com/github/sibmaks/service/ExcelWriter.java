@@ -2,6 +2,7 @@ package com.github.sibmaks.service;
 
 import com.github.sibmaks.RequestStats;
 import com.github.sibmaks.dto.RequestKey;
+import com.github.sibmaks.dto.RequestKind;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.xssf.usermodel.XSSFRow;
 import org.apache.poi.xssf.usermodel.XSSFSheet;
@@ -19,8 +20,17 @@ public class ExcelWriter {
     private static void addRequestStatisticsSheet(
             Map<RequestKey, RequestStats> stats,
             XSSFWorkbook workbook
-    ) throws IOException {
-        var sheet = workbook.createSheet("Request Statistics");
+    ) {
+        addSheet(stats, workbook, "Request Statistics", RequestKind.ALL);
+        addSheet(stats, workbook, "Request Statistics Static", RequestKind.STATIC);
+        addSheet(stats, workbook, "Request Statistics Dynamic", RequestKind.DYNAMIC);
+    }
+
+    private static void addSheet(Map<RequestKey, RequestStats> stats,
+                                 XSSFWorkbook workbook,
+                                 String title,
+                                 RequestKind requestKind) {
+        var sheet = workbook.createSheet(title);
 
         var headerStyle = createHeaderStyle(workbook);
 
@@ -28,8 +38,11 @@ public class ExcelWriter {
 
         var rowNum = 1;
         for (var entry : stats.entrySet()) {
-            var row = sheet.createRow(rowNum++);
             var key = entry.getKey();
+            if(key.requestKind() != requestKind) {
+                continue;
+            }
+            var row = sheet.createRow(rowNum++);
             var stat = entry.getValue();
 
             addRow(row, key, stat);
@@ -45,7 +58,7 @@ public class ExcelWriter {
             XSSFWorkbook workbook
     ) {
         var sheet = workbook.createSheet("RPS Report");
-        var formatter = DateTimeFormatter.ofPattern("MM-dd HH:mm")
+        var formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")
                 .withZone(ZoneId.systemDefault());
 
         var headerRow = sheet.createRow(0);
@@ -55,14 +68,15 @@ public class ExcelWriter {
         int rowNum = 1;
         for (var entry : rpsStats.entrySet()) {
             var row = sheet.createRow(rowNum++);
-            var minute = formatter.format(Instant.ofEpochSecond(entry.getKey()));
+            var instant = Instant.ofEpochSecond(entry.getKey());
+            var minute = formatter.format(instant);
             row.createCell(0).setCellValue(minute);
             row.createCell(1).setCellValue(entry.getValue());
         }
     }
 
     private static void addRow(XSSFRow row, RequestKey key, RequestStats stat) {
-        row.createCell(0, CellType.STRING).setCellValue(key.method());
+        row.createCell(0, CellType.STRING).setCellValue(key.kind());
         row.createCell(1, CellType.NUMERIC).setCellValue(stat.getCount());
         row.createCell(2, CellType.NUMERIC).setCellValue(stat.getTotalTime().doubleValue());
         row.createCell(3, CellType.NUMERIC).setCellValue(stat.getAverageTime().doubleValue());
@@ -78,7 +92,7 @@ public class ExcelWriter {
     private static String[] createHeaders(XSSFSheet sheet, CellStyle headerStyle) {
         var headerRow = sheet.createRow(0);
         var headers = new String[]{
-                "HTTP Method",
+                "Kind",
                 "Total Requests",
                 "Total Time (ms)",
                 "Avg Time (ms)",

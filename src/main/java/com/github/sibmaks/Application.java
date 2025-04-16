@@ -46,7 +46,7 @@ public class Application {
             var batcheCount = lastRequestIndex / step;
             for (int i = 1; i <= batcheCount; i++) {
                 int batchIndex = i;
-                var batchKey = new RequestKey("ALL_%d".formatted(i * step), RequestKind.GENERIC);
+                var batchKey = new RequestKey("ALL_%d".formatted(i * step), RequestKind.ALL);
                 var batchRequestStats = stats.computeIfAbsent(batchKey, it -> new RequestStats());
                 bus.subscribe(RQ_TOPIC, it -> {
                     var rq = (Request) it;
@@ -85,16 +85,16 @@ public class Application {
         writer.write(stats, rpsStats, "output-%d.xlsx".formatted(System.currentTimeMillis()));
     }
 
-    private static void collectRPS(InMemoryEventBus bus, LinkedHashMap<Long, Integer> rpsStats) {
+    private static void collectRPS(InMemoryEventBus bus, Map<Long, Integer> rpsStats) {
         bus.subscribe(RQ_TOPIC, it -> {
             var rq = (Request) it;
-            long minute = (rq.timestamp() / 60) * 60;
+            var minute = (rq.timestamp() / 1000 / 60) * 60;
             rpsStats.put(minute, rpsStats.getOrDefault(minute, 0) + 1);
         });
     }
 
-    private static void collectAll(LinkedHashMap<RequestKey, RequestStats> stats, InMemoryEventBus bus) {
-        var genericKey = new RequestKey("ALL", RequestKind.GENERIC);
+    private static void collectAll(Map<RequestKey, RequestStats> stats, InMemoryEventBus bus) {
+        var genericKey = new RequestKey("ALL", RequestKind.ALL);
         var genericRequestStats = stats.computeIfAbsent(genericKey, it -> new RequestStats());
         bus.subscribe(RQ_TOPIC, it -> {
             var rq = (Request) it;
