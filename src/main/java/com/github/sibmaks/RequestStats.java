@@ -1,5 +1,7 @@
 package com.github.sibmaks;
 
+import com.github.sibmaks.dto.Request;
+
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.ArrayList;
@@ -10,11 +12,16 @@ public class RequestStats {
     private final List<BigDecimal> values = new ArrayList<>();
 
     private BigDecimal totalTime = BigDecimal.ZERO;
+    private long minTimestamp = Long.MAX_VALUE;
+    private long maxTimestamp = Long.MIN_VALUE;
 
-    public void addRequest(BigDecimal time) {
-        time = time.setScale(12, RoundingMode.HALF_UP);
+    public void addRequest(Request rq) {
+        var time = rq.time().setScale(12, RoundingMode.HALF_UP);
         totalTime = totalTime.add(time);
         values.add(time);
+
+        minTimestamp = Math.min(minTimestamp, rq.timestamp());
+        maxTimestamp = Math.max(maxTimestamp, rq.timestamp());
     }
 
     public int getCount() {
@@ -93,5 +100,13 @@ public class RequestStats {
         return values.stream()
                 .max(BigDecimal::compareTo)
                 .orElse(BigDecimal.ZERO);
+    }
+
+    public long getRPS() {
+        var n = values.size();
+        if (n == 0) {
+            return 0;
+        }
+        return 1000L * n / (maxTimestamp - minTimestamp);
     }
 }

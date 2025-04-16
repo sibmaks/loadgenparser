@@ -9,35 +9,55 @@ import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.Map;
-import java.util.regex.Pattern;
 
 public class ExcelWriter {
 
-    public void write(Map<RequestKey, RequestStats> stats, String filename) throws IOException {
-        try (var workbook = new XSSFWorkbook()) {
-            var sheet = workbook.createSheet("Request Statistics");
+    private static void addRequestStatisticsSheet(
+            Map<RequestKey, RequestStats> stats,
+            XSSFWorkbook workbook
+    ) throws IOException {
+        var sheet = workbook.createSheet("Request Statistics");
 
-            var headerStyle = createHeaderStyle(workbook);
+        var headerStyle = createHeaderStyle(workbook);
 
-            var headers = createHeaders(sheet, headerStyle);
+        var headers = createHeaders(sheet, headerStyle);
 
-            var rowNum = 1;
-            for (var entry : stats.entrySet()) {
-                var row = sheet.createRow(rowNum++);
-                var key = entry.getKey();
-                var stat = entry.getValue();
+        var rowNum = 1;
+        for (var entry : stats.entrySet()) {
+            var row = sheet.createRow(rowNum++);
+            var key = entry.getKey();
+            var stat = entry.getValue();
 
-                addRow(row, key, stat);
-            }
+            addRow(row, key, stat);
+        }
 
-            for (var i = 0; i < headers.length; i++) {
-                sheet.autoSizeColumn(i);
-            }
+        for (var i = 0; i < headers.length; i++) {
+            sheet.autoSizeColumn(i);
+        }
+    }
 
-            try (var fileOut = new FileOutputStream(filename)) {
-                workbook.write(fileOut);
-            }
+    private static void addRPSSheet(
+            Map<Long, Integer> rpsStats,
+            XSSFWorkbook workbook
+    ) {
+        var sheet = workbook.createSheet("RPS Report");
+        var formatter = DateTimeFormatter.ofPattern("MM-dd HH:mm")
+                .withZone(ZoneId.systemDefault());
+
+        var headerRow = sheet.createRow(0);
+        headerRow.createCell(0).setCellValue("Minute");
+        headerRow.createCell(1).setCellValue("Requests");
+
+        int rowNum = 1;
+        for (var entry : rpsStats.entrySet()) {
+            var row = sheet.createRow(rowNum++);
+            var minute = formatter.format(Instant.ofEpochSecond(entry.getKey()));
+            row.createCell(0).setCellValue(minute);
+            row.createCell(1).setCellValue(entry.getValue());
         }
     }
 
@@ -52,11 +72,24 @@ public class ExcelWriter {
         row.createCell(7, CellType.NUMERIC).setCellValue(stat.getPercentile99().doubleValue());
         row.createCell(8, CellType.NUMERIC).setCellValue(stat.getMin().doubleValue());
         row.createCell(9, CellType.NUMERIC).setCellValue(stat.getMax().doubleValue());
+        row.createCell(10, CellType.NUMERIC).setCellValue(stat.getRPS());
     }
 
     private static String[] createHeaders(XSSFSheet sheet, CellStyle headerStyle) {
         var headerRow = sheet.createRow(0);
-        var headers = new String[]{"HTTP Method", "Total Requests", "Total Time (ms)", "Avg Time (ms)", "Variance (ms)", "90% (ms)", "95% (ms)", "99% (ms)", "Min (ms)", "Max (ms)"};
+        var headers = new String[]{
+                "HTTP Method",
+                "Total Requests",
+                "Total Time (ms)",
+                "Avg Time (ms)",
+                "Variance (ms)",
+                "90% (ms)",
+                "95% (ms)",
+                "99% (ms)",
+                "Min (ms)",
+                "Max (ms)",
+                "RPS"
+        };
         for (var i = 0; i < headers.length; i++) {
             var cell = headerRow.createCell(i);
             cell.setCellValue(headers[i]);
@@ -78,5 +111,20 @@ public class ExcelWriter {
         style.setBorderRight(BorderStyle.THIN);
         style.setBorderLeft(BorderStyle.THIN);
         return style;
+    }
+
+    public void write(
+            Map<RequestKey, RequestStats> stats,
+            Map<Long, Integer> rpsStats,
+            String filename
+    ) throws IOException {
+        try (var workbook = new XSSFWorkbook()) {
+            addRequestStatisticsSheet(stats, workbook);
+            addRPSSheet(rpsStats, workbook);
+
+            try (var fileOut = new FileOutputStream(filename)) {
+                workbook.write(fileOut);
+            }
+        }
     }
 }

@@ -14,7 +14,7 @@ import java.util.regex.Pattern;
 public class LogParser {
     public static final String RQ_TOPIC = "request";
     private static final Pattern LOG_LINE_PATTERN = Pattern.compile(
-            "^\\[\\d+]\\[(GET|POST|PUT|DELETE|HEAD|OPTIONS|PATCH)].*?at (\\d+[.,]\\d+)ms.*?(http://\\S+)$"
+            "^\\[(\\d+)]\\[(GET|POST|PUT|DELETE|HEAD|OPTIONS|PATCH)].*?at (\\d+[.,]\\d+)ms.*?(http://\\S+)$"
     );
     private final EventPublisher eventPublisher;
 
@@ -36,19 +36,21 @@ public class LogParser {
                 if (!matcher.find()) {
                     continue;
                 }
-                var method = matcher.group(1);
-                var time = new BigDecimal(matcher.group(2).replace(',', '.'));
-                var uri = matcher.group(3);
+                var timestamp = Long.parseLong(matcher.group(1));
+                var method = matcher.group(2);
+                var time = new BigDecimal(matcher.group(3).replace(',', '.'));
+                var uri = matcher.group(4);
 
                 var requestKind = isStaticURI(uri) ? RequestKind.STATIC : RequestKind.DYNAMIC;
                 var key = new RequestKey(
-                        requestIndex,
                         method,
                         requestKind
                 );
                 var rq = new Request(
+                        requestIndex,
                         key,
-                        time
+                        time,
+                        timestamp
                 );
 
                 eventPublisher.publish(RQ_TOPIC, rq);

@@ -9,6 +9,7 @@ import com.github.sibmaks.service.LogParser;
 
 import java.io.IOException;
 import java.util.LinkedHashMap;
+import java.util.Map;
 
 import static com.github.sibmaks.service.LogParser.RQ_TOPIC;
 
@@ -23,8 +24,11 @@ public class Application {
 
         var fileName = args[0];
         var stats = new LinkedHashMap<RequestKey, RequestStats>();
+        var rpsStats = new LinkedHashMap<Long, Integer>();
 
         var bus = new InMemoryEventBus();
+
+        collectRPS(bus, rpsStats);
 
         collectAll(stats, bus);
 
@@ -42,34 +46,34 @@ public class Application {
             var batcheCount = lastRequestIndex / step;
             for (int i = 1; i <= batcheCount; i++) {
                 int batchIndex = i;
-                var batchKey = new RequestKey(0, "ALL_%d".formatted(i * step), RequestKind.GENERIC);
+                var batchKey = new RequestKey("ALL_%d".formatted(i * step), RequestKind.GENERIC);
                 var batchRequestStats = stats.computeIfAbsent(batchKey, it -> new RequestStats());
                 bus.subscribe(RQ_TOPIC, it -> {
                     var rq = (Request) it;
-                    if (rq.key().requestIndex() > batchIndex * step) {
+                    if (rq.requestIndex() > batchIndex * step) {
                         return;
                     }
-                    batchRequestStats.addRequest(rq.time());
+                    batchRequestStats.addRequest(rq);
                 });
 
-                var batchStaticKey = new RequestKey(0, "STATIC_%d".formatted(i * step), RequestKind.STATIC);
+                var batchStaticKey = new RequestKey("STATIC_%d".formatted(i * step), RequestKind.STATIC);
                 var batchStaticRequestStats = stats.computeIfAbsent(batchStaticKey, it -> new RequestStats());
                 bus.subscribe(RQ_TOPIC, it -> {
                     var rq = (Request) it;
-                    if (rq.key().requestIndex() > batchIndex * step || rq.key().requestKind() != RequestKind.STATIC) {
+                    if (rq.requestIndex() > batchIndex * step || rq.key().requestKind() != RequestKind.STATIC) {
                         return;
                     }
-                    batchStaticRequestStats.addRequest(rq.time());
+                    batchStaticRequestStats.addRequest(rq);
                 });
 
-                var batchDynamicKey = new RequestKey(0, "DYNAMIC_%d".formatted(i * step), RequestKind.DYNAMIC);
+                var batchDynamicKey = new RequestKey("DYNAMIC_%d".formatted(i * step), RequestKind.DYNAMIC);
                 var batchDynamicRequestStats = stats.computeIfAbsent(batchDynamicKey, it -> new RequestStats());
                 bus.subscribe(RQ_TOPIC, it -> {
                     var rq = (Request) it;
-                    if (rq.key().requestIndex() > batchIndex * step || rq.key().requestKind() != RequestKind.DYNAMIC) {
+                    if (rq.requestIndex() > batchIndex * step || rq.key().requestKind() != RequestKind.DYNAMIC) {
                         return;
                     }
-                    batchDynamicRequestStats.addRequest(rq.time());
+                    batchDynamicRequestStats.addRequest(rq);
                 });
             }
         }
@@ -78,27 +82,38 @@ public class Application {
         parser.parse(fileName, lastRequestIndex);
 
         var writer = new ExcelWriter();
-        writer.write(stats, "output-%d.xlsx".formatted(System.currentTimeMillis()));
+        writer.write(stats, rpsStats, "output-%d.xlsx".formatted(System.currentTimeMillis()));
     }
 
-    private static void collectAll(LinkedHashMap<RequestKey, RequestStats> stats, InMemoryEventBus bus) {
-        var genericKey = new RequestKey(0, "ALL", RequestKind.GENERIC);
-        var genericRequestStats = stats.computeIfAbsent(genericKey, it -> new RequestStats());
+    private static void collectRPS(InMemoryEventBus bus, LinkedHashMap<Long, Integer> rpsStats) {
         bus.subscribe(RQ_TOPIC, it -> {
             var rq = (Request) it;
-            genericRequestStats.addRequest(rq.time());
+            long minute = (rq.timestamp() / 60) * 60;
+            rpsStats.put(minute, rpsStats.getOrDefault(minute, 0) + 1);
         });
     }
 
-    private static void collectSpecificType(String DYNAMIC, RequestKind dynamic, LinkedHashMap<RequestKey, RequestStats> stats, InMemoryEventBus bus) {
-        var dynamicKey = new RequestKey(0, DYNAMIC, dynamic);
+    private static void collectAll(LinkedHashMap<RequestKey, RequestStats> stats, InMemoryEventBus bus) {
+        var genericKey = new RequestKey("ALL", RequestKind.GENERIC);
+        var genericRequestStats = stats.computeIfAbsent(genericKey, it -> new RequestStats());
+        bus.subscribe(RQ_TOPIC, it -> {
+            var rq = (Request) it;
+            genericRequestStats.addRequest(rq);
+        });
+    }
+
+    private static void collectSpecificType(String DYNAMIC,
+                                            RequestKind dynamic,
+                                            Map<RequestKey, RequestStats> stats,
+                                            InMemoryEventBus bus) {
+        var dynamicKey = new RequestKey(DYNAMIC, dynamic);
         var dynamicRequestStats = stats.computeIfAbsent(dynamicKey, it -> new RequestStats());
         bus.subscribe(RQ_TOPIC, it -> {
             var rq = (Request) it;
             if (rq.key().requestKind() != dynamic) {
                 return;
             }
-            dynamicRequestStats.addRequest(rq.time());
+            dynamicRequestStats.addRequest(rq);
         });
     }
 
