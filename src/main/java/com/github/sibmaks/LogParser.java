@@ -11,7 +11,7 @@ import java.util.regex.Pattern;
 public class LogParser {
 
     private static final Pattern LOG_LINE_PATTERN = Pattern.compile(
-            "^\\[\\d+]\\[(GET|POST|PUT|DELETE|HEAD|OPTIONS|PATCH)].*?at (\\d+\\.\\d+)ms.*?(http://\\S+)$"
+            "^\\[\\d+]\\[(GET|POST|PUT|DELETE|HEAD|OPTIONS|PATCH)].*?at (\\d+[.,]\\d+)ms.*?(http://\\S+)$"
     );
     private static final String RQ_TOPIC = "request";
 
