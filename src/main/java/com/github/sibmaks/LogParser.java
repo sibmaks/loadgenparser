@@ -6,10 +6,14 @@ import java.io.IOException;
 import java.math.BigDecimal;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
-import java.util.Map;
 import java.util.regex.Pattern;
 
 public class LogParser {
+
+    private static final Pattern LOG_LINE_PATTERN = Pattern.compile(
+            "^\\[\\d+]\\[(GET|POST|PUT|DELETE|HEAD|OPTIONS|PATCH)].*?at (\\d+\\.\\d+)ms.*?(http://\\S+)$"
+    );
+    private static final String RQ_TOPIC = "request";
 
     public static void main(String[] args) throws IOException {
         if (args.length == 0) {
@@ -17,76 +21,117 @@ public class LogParser {
             return;
         }
 
-        var stats = collectStatistics(args[0]);
-
-        //printStatistics(stats);
-
-        ExcelWriter.writeExcelReport(stats, "output-%d.xlsx".formatted(System.currentTimeMillis()));
-    }
-
-    private static HashMap<RequestKey, RequestStats> collectStatistics(String fileName) {
-        var genericStatsKey = new RequestKey("GENERIC", "all", RequestKind.GENERIC);
-        var staticStatsKey = new RequestKey("STATIC", "all", RequestKind.STATIC);
-        var dynamicStatsKey = new RequestKey("DYNAMIC", "all", RequestKind.DYNAMIC);
-
+        var fileName = args[0];
         var stats = new LinkedHashMap<RequestKey, RequestStats>();
-        stats.put(genericStatsKey, new RequestStats());
-        stats.put(staticStatsKey, new RequestStats());
-        stats.put(dynamicStatsKey, new RequestStats());
 
-        var logPattern = Pattern.compile(
-                "^\\[(GET|POST|PUT|DELETE|HEAD|OPTIONS|PATCH)].*?at\\s(\\d+,\\d+)ms.*?(http://\\S+)"
-        );
+        var bus = new InMemoryEventBus();
+
+        var genericKey = new RequestKey(0, "ALL", RequestKind.GENERIC);
+        var genericRequestStats = stats.computeIfAbsent(genericKey, it -> new RequestStats());
+        bus.subscribe(RQ_TOPIC, it -> {
+            var rq = (Request) it;
+            genericRequestStats.addRequest(rq.time());
+        });
+
+        var staticKey = new RequestKey(0, "STATIC", RequestKind.STATIC);
+        var staticRequestStats = stats.computeIfAbsent(staticKey, it -> new RequestStats());
+        bus.subscribe(RQ_TOPIC, it -> {
+            var rq = (Request) it;
+            if (rq.key().requestKind() != RequestKind.STATIC) {
+                return;
+            }
+            staticRequestStats.addRequest(rq.time());
+        });
+
+        var dynamicKey = new RequestKey(0, "DYNAMIC", RequestKind.DYNAMIC);
+        var dynamicRequestStats = stats.computeIfAbsent(dynamicKey, it -> new RequestStats());
+        bus.subscribe(RQ_TOPIC, it -> {
+            var rq = (Request) it;
+            if (rq.key().requestKind() != RequestKind.DYNAMIC) {
+                return;
+            }
+            dynamicRequestStats.addRequest(rq.time());
+        });
+
+        var lastRequestIndex = Integer.MAX_VALUE;
+        if (args.length > 1) {
+            lastRequestIndex = Integer.parseInt(args[1]);
+        }
+
+        if (args.length > 2) {
+            var step = Integer.parseInt(args[2]);
+            var batcheCount = lastRequestIndex / step;
+            for (int i = 1; i <= batcheCount; i++) {
+                int batchIndex = i;
+                var batchKey = new RequestKey(0, "ALL_%d".formatted(i * step), RequestKind.GENERIC);
+                var batchRequestStats = stats.computeIfAbsent(batchKey, it -> new RequestStats());
+                bus.subscribe(RQ_TOPIC, it -> {
+                    var rq = (Request) it;
+                    if(rq.key().requestIndex() > batchIndex * step) {
+                        return;
+                    }
+                    batchRequestStats.addRequest(rq.time());
+                });
+
+                var batchStaticKey = new RequestKey(0, "STATIC_%d".formatted(i * step), RequestKind.STATIC);
+                var batchStaticRequestStats = stats.computeIfAbsent(batchStaticKey, it -> new RequestStats());
+                bus.subscribe(RQ_TOPIC, it -> {
+                    var rq = (Request) it;
+                    if(rq.key().requestIndex() > batchIndex * step || rq.key().requestKind() != RequestKind.STATIC) {
+                        return;
+                    }
+                    batchStaticRequestStats.addRequest(rq.time());
+                });
+
+                var batchDynamicKey = new RequestKey(0, "DYNAMIC_%d".formatted(i * step), RequestKind.DYNAMIC);
+                var batchDynamicRequestStats = stats.computeIfAbsent(batchDynamicKey, it -> new RequestStats());
+                bus.subscribe(RQ_TOPIC, it -> {
+                    var rq = (Request) it;
+                    if(rq.key().requestIndex() > batchIndex * step || rq.key().requestKind() != RequestKind.DYNAMIC) {
+                        return;
+                    }
+                    batchDynamicRequestStats.addRequest(rq.time());
+                });
+            }
+        }
 
         try (var reader = new BufferedReader(new FileReader(fileName))) {
             String line;
+            var requestIndex = 1;
             while ((line = reader.readLine()) != null) {
-                var matcher = logPattern.matcher(line);
-                if (matcher.find()) {
-                    var method = matcher.group(1);
-                    var time = new BigDecimal(matcher.group(2).replace(',', '.'));
-                    var uri = matcher.group(3);
+                var matcher = LOG_LINE_PATTERN.matcher(line);
+                if (!matcher.find()) {
+                    continue;
+                }
+                var method = matcher.group(1);
+                var time = new BigDecimal(matcher.group(2).replace(',', '.'));
+                var uri = matcher.group(3);
 
-                    var genericRequestStats = stats.getOrDefault(genericStatsKey, new RequestStats());
-                    genericRequestStats.addRequest(time);
-                    stats.putIfAbsent(genericStatsKey, genericRequestStats);
+                var requestKind = isStaticURI(uri) ? RequestKind.STATIC : RequestKind.DYNAMIC;
+                var key = new RequestKey(
+                        requestIndex,
+                        method,
+                        requestKind
+                );
+                var rq = new Request(
+                        key,
+                        time
+                );
 
-                    var key = new RequestKey(method, uri, (uri.contains("/img/") || uri.contains("/cmsstatic/") || uri.contains("/js/")) ? RequestKind.STATIC : RequestKind.DYNAMIC);
-                    var requestStats = stats.getOrDefault(key, new RequestStats());
-                    requestStats.addRequest(time);
-                    stats.putIfAbsent(key, requestStats);
-
-                    if(key.requestKind() == RequestKind.STATIC) {
-                        var staticRequestStats = stats.getOrDefault(staticStatsKey, new RequestStats());
-                        staticRequestStats.addRequest(time);
-                        stats.putIfAbsent(staticStatsKey, staticRequestStats);
-                    } else if (key.requestKind() == RequestKind.DYNAMIC) {
-                        var dynamicRequestStats = stats.getOrDefault(dynamicStatsKey, new RequestStats());
-                        dynamicRequestStats.addRequest(time);
-                        stats.putIfAbsent(dynamicStatsKey, dynamicRequestStats);
-                    }
+                bus.publish(RQ_TOPIC, rq);
+                if (lastRequestIndex <= requestIndex++) {
+                    break;
                 }
             }
         } catch (IOException e) {
             e.printStackTrace();
         }
-        return stats;
+
+        ExcelWriter.writeExcelReport(stats, "output-%d.xlsx".formatted(System.currentTimeMillis()));
     }
 
-    private static void printStatistics(Map<RequestKey, RequestStats> stats) {
-        System.out.println("HTTP Method | URI | Total Requests | Total Time(ms) | Avg Time(ms) | Variant(ms)");
-        System.out.println("------------------------------------------------------------------");
-        stats.forEach((key, value) -> {
-            System.out.printf(
-                    "%-10s | %-40s | %-14d | %-13.4f | %.4f | %.4f%n",
-                    key.method(),
-                    key.uri(),
-                    value.getCount(),
-                    value.getTotalTime(),
-                    value.getAverageTime(),
-                    value.getVariance()
-            );
-        });
+    private static boolean isStaticURI(String uri) {
+        return uri.contains("/img/") || uri.contains("/cmsstatic/") || uri.contains("/js/");
     }
 
 

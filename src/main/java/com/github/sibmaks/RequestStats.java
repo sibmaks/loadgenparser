@@ -49,7 +49,19 @@ public class RequestStats {
                 .subtract(mean.pow(2));
     }
 
+    public BigDecimal getPercentile90() {
+        return getPercentile(0.90);
+    }
+
+    public BigDecimal getPercentile95() {
+        return getPercentile(0.95);
+    }
+
     public BigDecimal getPercentile99() {
+        return getPercentile(0.99);
+    }
+
+    private BigDecimal getPercentile(double x) {
         var n = values.size();
         if (n == 0) {
             return BigDecimal.ZERO;
@@ -57,7 +69,7 @@ public class RequestStats {
 
         var sorted = new ArrayList<>(values);
         Collections.sort(sorted);
-        var index = (int) Math.ceil(0.99 * n) - 1;
+        var index = (int) Math.ceil(x * n) - 1;
         index = Math.min(index, n - 1);
 
         return sorted.get(index);

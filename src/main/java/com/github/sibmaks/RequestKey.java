@@ -1,9 +1,5 @@
 package com.github.sibmaks;
 
-public record RequestKey(String method, String uri, RequestKind requestKind) {
-
-    public boolean isStatic() {
-        return requestKind == RequestKind.STATIC;
-    }
+public record RequestKey(int requestIndex, String method, RequestKind requestKind) {
 
 }
