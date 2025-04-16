@@ -1,5 +1,7 @@
-package com.github.sibmaks;
+package com.github.sibmaks.service;
 
+import com.github.sibmaks.RequestStats;
+import com.github.sibmaks.dto.RequestKey;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.xssf.usermodel.XSSFRow;
 import org.apache.poi.xssf.usermodel.XSSFSheet;
@@ -8,9 +10,11 @@ import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.util.Map;
+import java.util.regex.Pattern;
 
 public class ExcelWriter {
-    public static void writeExcelReport(Map<RequestKey, RequestStats> stats, String filename) throws IOException {
+
+    public void write(Map<RequestKey, RequestStats> stats, String filename) throws IOException {
         try (var workbook = new XSSFWorkbook()) {
             var sheet = workbook.createSheet("Request Statistics");
 

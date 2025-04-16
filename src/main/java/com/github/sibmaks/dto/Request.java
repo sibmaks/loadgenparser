@@ -1,4 +1,4 @@
-package com.github.sibmaks;
+package com.github.sibmaks.dto;
 
 import java.math.BigDecimal;
 

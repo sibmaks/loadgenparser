@@ -1,4 +1,4 @@
-package com.github.sibmaks;
+package com.github.sibmaks.bus;
 
 import java.util.Collections;
 import java.util.List;
@@ -8,9 +8,10 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Consumer;
 
-public class InMemoryEventBus {
+public class InMemoryEventBus implements EventPublisher {
     private final Map<String, List<Consumer<Object>>> subscribers = new ConcurrentHashMap<>();
 
+    @Override
     public void publish(String topic, Object event) {
         var consumers = Optional.ofNullable(subscribers.get(topic))
                 .orElseGet(Collections::emptyList);
