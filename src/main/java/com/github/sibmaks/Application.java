@@ -118,7 +118,7 @@ public class Application implements Runnable {
                 }
 
                 if (rq.key().requestKind() == RequestKind.DYNAMIC) {
-                    var requestStats = staticStats.computeIfAbsent(
+                    var requestStats = dynamicStats.computeIfAbsent(
                             batch,
                             b -> getRequestStats("DYNAMIC_%d", threshold, b, stats, RequestKind.DYNAMIC)
                     );
