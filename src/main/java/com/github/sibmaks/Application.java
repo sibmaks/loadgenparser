@@ -27,6 +27,8 @@ public class Application implements Runnable {
     private int lastRequestIndex;
     @CommandLine.Option(names = {"-s", "--step"}, description = "Step to collect statistic", defaultValue = "-1")
     private int step;
+    @CommandLine.Option(names = {"-e", "--save-excel"}, description = "Save stats to excel file", defaultValue = "false")
+    private boolean saveExcel;
 
     public static void main(String[] args) {
         var commandLine = new CommandLine(new Application());
@@ -90,9 +92,11 @@ public class Application implements Runnable {
             var consoleReportPrinter = new ConsoleReportPrinter();
             consoleReportPrinter.printRequestStats(stats);
 
-            var writer = new ExcelWriter();
-            writer.write(stats, rpsStats, "output-%d.xlsx".formatted(System.currentTimeMillis()));
-            log.info("Request stats saved");
+            if(saveExcel) {
+                var writer = new ExcelWriter();
+                writer.write(stats, rpsStats, "output-%d.xlsx".formatted(System.currentTimeMillis()));
+                log.info("Request stats saved");
+            }
         } catch (Exception e) {
             System.err.println(e.getMessage());
         }
