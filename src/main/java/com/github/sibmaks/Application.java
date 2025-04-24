@@ -29,6 +29,12 @@ public class Application implements Runnable {
     private int step;
     @CommandLine.Option(names = {"-e", "--save-excel"}, description = "Save stats to excel file", defaultValue = "false")
     private boolean saveExcel;
+    @CommandLine.Option(names = {"-ca", "--collect-all"}, description = "Collect all statistic", defaultValue = "true")
+    private boolean collectAll;
+    @CommandLine.Option(names = {"-cs", "--collect-static"}, description = "Collect static statistic", defaultValue = "false")
+    private boolean collectStatic;
+    @CommandLine.Option(names = {"-cd", "--collect-dynamic"}, description = "Collect dynamic statistic", defaultValue = "false")
+    private boolean collectDynamic;
 
     public static void main(String[] args) {
         var commandLine = new CommandLine(new Application());
@@ -76,9 +82,15 @@ public class Application implements Runnable {
         var bus = new InMemoryEventBus();
 
         collectRPS(bus, rpsStats);
-        collectAll(stats, bus);
-        collectSpecificType("STATIC", RequestKind.STATIC, stats, bus);
-        collectSpecificType("DYNAMIC", RequestKind.DYNAMIC, stats, bus);
+        if (collectAll) {
+            collectAll(stats, bus);
+        }
+        if (collectStatic) {
+            collectSpecificType("STATIC", RequestKind.STATIC, stats, bus);
+        }
+        if (collectDynamic) {
+            collectSpecificType("DYNAMIC", RequestKind.DYNAMIC, stats, bus);
+        }
 
         if (step > 0) {
             setUpStepStatistic(stats, bus);
@@ -92,7 +104,7 @@ public class Application implements Runnable {
             var consoleReportPrinter = new ConsoleReportPrinter();
             consoleReportPrinter.printRequestStats(stats);
 
-            if(saveExcel) {
+            if (saveExcel) {
                 var writer = new ExcelWriter();
                 writer.write(stats, rpsStats, "output-%d.xlsx".formatted(System.currentTimeMillis()));
                 log.info("Request stats saved");
@@ -119,13 +131,15 @@ public class Application implements Runnable {
                 var batch = index / currentStep;
                 var threshold = (batch + 1) * currentStep;
 
-                var allStats = this.allStats.computeIfAbsent(
-                        batch,
-                        b -> getRequestStats("ALL_%d", threshold, b, stats, RequestKind.ALL)
-                );
-                allStats.addRequest(rq);
+                if (collectAll) {
+                    var allStats = this.allStats.computeIfAbsent(
+                            batch,
+                            b -> getRequestStats("ALL_%d", threshold, b, stats, RequestKind.ALL)
+                    );
+                    allStats.addRequest(rq);
+                }
 
-                if (rq.key().requestKind() == RequestKind.STATIC) {
+                if (collectStatic && rq.key().requestKind() == RequestKind.STATIC) {
                     var requestStats = staticStats.computeIfAbsent(
                             batch,
                             b -> getRequestStats("STATIC_%d", threshold, b, stats, RequestKind.STATIC)
@@ -133,7 +147,7 @@ public class Application implements Runnable {
                     requestStats.addRequest(rq);
                 }
 
-                if (rq.key().requestKind() == RequestKind.DYNAMIC) {
+                if (collectDynamic && rq.key().requestKind() == RequestKind.DYNAMIC) {
                     var requestStats = dynamicStats.computeIfAbsent(
                             batch,
                             b -> getRequestStats("DYNAMIC_%d", threshold, b, stats, RequestKind.DYNAMIC)
