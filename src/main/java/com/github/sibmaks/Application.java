@@ -4,8 +4,11 @@ import com.github.sibmaks.bus.InMemoryEventBus;
 import com.github.sibmaks.dto.Request;
 import com.github.sibmaks.dto.RequestKey;
 import com.github.sibmaks.dto.RequestKind;
+import com.github.sibmaks.service.ConsoleReportPrinter;
 import com.github.sibmaks.service.ExcelWriter;
 import com.github.sibmaks.service.LogParser;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import picocli.CommandLine;
 
 import java.util.LinkedHashMap;
@@ -15,6 +18,9 @@ import java.util.function.Consumer;
 import static com.github.sibmaks.service.LogParser.RQ_TOPIC;
 
 public class Application implements Runnable {
+
+    private static final Logger log = LoggerFactory.getLogger(Application.class);
+
     @CommandLine.Option(names = {"-f", "--file"}, description = "Input log file", required = true)
     private String file;
     @CommandLine.Option(names = {"-t", "--to"}, description = "Amount of request to read", defaultValue = "-1")
@@ -61,6 +67,7 @@ public class Application implements Runnable {
 
     @Override
     public void run() {
+        log.info("Starting request stats collector");
         var stats = new LinkedHashMap<RequestKey, RequestStats>();
         var rpsStats = new LinkedHashMap<Long, Integer>();
 
@@ -78,9 +85,14 @@ public class Application implements Runnable {
         try {
             var parser = new LogParser(bus);
             parser.parse(file, lastRequestIndex);
+            log.info("Request stats collected");
+
+            var consoleReportPrinter = new ConsoleReportPrinter();
+            consoleReportPrinter.printRequestStats(stats);
 
             var writer = new ExcelWriter();
             writer.write(stats, rpsStats, "output-%d.xlsx".formatted(System.currentTimeMillis()));
+            log.info("Request stats saved");
         } catch (Exception e) {
             System.err.println(e.getMessage());
         }
