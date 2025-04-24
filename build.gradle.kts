@@ -13,6 +13,7 @@ repositories {
 dependencies {
     implementation("org.apache.poi:poi:5.4.1")
     implementation("org.apache.poi:poi-ooxml:5.4.1")
+    implementation("info.picocli:picocli:4.7.7")
 
     testImplementation(platform("org.junit:junit-bom:5.10.0"))
     testImplementation("org.junit.jupiter:junit-jupiter")

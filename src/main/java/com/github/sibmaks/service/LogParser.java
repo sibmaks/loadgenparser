@@ -28,6 +28,9 @@ public class LogParser {
     }
 
     public void parse(String fileName, int lastRequestIndex) throws IOException {
+        if (lastRequestIndex < 0) {
+            lastRequestIndex = Integer.MAX_VALUE;
+        }
         try (var reader = new BufferedReader(new FileReader(fileName))) {
             String line;
             var requestIndex = 1;

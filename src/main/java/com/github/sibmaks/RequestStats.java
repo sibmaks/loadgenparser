@@ -8,12 +8,20 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-public class RequestStats {
-    private final List<BigDecimal> values = new ArrayList<>();
+public class RequestStats implements Cloneable {
+    private final List<BigDecimal> values;
 
     private BigDecimal totalTime = BigDecimal.ZERO;
     private long minTimestamp = Long.MAX_VALUE;
     private long maxTimestamp = Long.MIN_VALUE;
+
+    public RequestStats() {
+        this.values = new ArrayList<>();
+    }
+
+    private RequestStats(List<BigDecimal> values) {
+        this.values = new ArrayList<>(values);
+    }
 
     public void addRequest(Request rq) {
         var time = rq.time().setScale(12, RoundingMode.HALF_UP);
@@ -108,5 +116,13 @@ public class RequestStats {
             return 0;
         }
         return 1000L * n / (maxTimestamp - minTimestamp);
+    }
+
+    public RequestStats copy() {
+        var copy = new RequestStats(values);
+        copy.totalTime = totalTime;
+        copy.minTimestamp = minTimestamp;
+        copy.maxTimestamp = maxTimestamp;
+        return copy;
     }
 }
